@@ -7,6 +7,8 @@ package gosse
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -159,9 +161,24 @@ func NewSSEService(port int) *SSEService {
 		obs:      NewServiceSubject(),
 	}
 
+	http.Handle("/", http.HandlerFunc(id.handlerStatic))
 	http.Handle("/events", http.HandlerFunc(id.handlerEvents))
 
 	return id
+}
+
+func (id *SSEService) handlerStatic(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.WriteHeader(http.StatusOK)
+
+	data, err := ioutil.ReadFile("static" + r.URL.String())
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	w.Write(data)
 }
 
 func (id *SSEService) handlerEvents(w http.ResponseWriter, r *http.Request) {

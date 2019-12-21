@@ -21,6 +21,9 @@ demo: build
 	./demo
 
 www:
+	open "http://127.0.0.1:8000/index.html"
+
+events:
 	open "http://127.0.0.1:8000/events"
 
 test: build
