@@ -15,37 +15,121 @@
 	<link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 
 	<!--Import Mithril-->
-	<script src="https://unpkg.com/mithril/mithril.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/mithril/2.0.4/mithril.js"></script>
 
 	<script>
-		load = () => {
-			var support = new EventSource('/events');
-			support.onmessage = (event) => {
-				var payload = JSON.parse(event.data);
-				console.log(payload);
+		bootstrap = () => {
+			const buttonClass = 'btn-small waves-effect waves-light blue';
+
+			const Stream = {
+				start: () => {
+					var support = new EventSource('/events');
+					support.onmessage = (event) => {
+						var payload = JSON.parse(event.data);
+						var keys = Object.keys(payload);
+						if (keys.indexOf('set1') > -1) {
+							Data.data["set1"] = payload['set1']
+						} else {
+							Data.data["set2"] = payload['set2']
+						}
+					};
+				}
+			}
+
+			var Data = {
+				header: [
+					'x', 'y'
+				],
+				data: {
+					set1: {
+						val1: 'abc',
+						val2: 'def'
+					},
+					set2: {
+						val1: 'ghi',
+						val2: 'jkl'
+					}
+				}
+			}
+
+			var Header = {
+				view: (vnode) => {
+					return m('div', { class: 'row center' }, [
+						m('h5', { class: 'header col s12 light' }, 'Demo Header'),
+						m('button', { class: buttonClass, onclick: Stream.start }, 'Start Stream')
+					]
+					);
+				}
 			};
-		};
+
+			const Action = {
+				view: (vnode) => {
+					return m('a', { href: 'http://www.google.com' }, 'Google')
+				}
+			}
+
+			const Table = {
+				view: (vnode) => {
+					return m('table', { class: 'highlight' }, [
+						m('thead', [
+							m('tr', [
+								Data.header.map(
+									(header) => {
+										// return m('fieldset', [
+										return m('th', header)
+										// ])
+									}
+								)
+							])
+						]),
+						m('tbody', [
+							Object.keys(Data.data).map(
+								(rowkey) => {
+									// return m('fieldset', [
+									return m('tr', [
+										Object.keys(Data.data[rowkey]).map(
+											(colkey) => {
+												return m('td', Data.data[rowkey][colkey])
+											}
+										)
+									])
+									// ])
+								}
+							)
+						])
+					])
+				}
+			}
+
+			const Body = {
+				view: (vnode) => {
+					return m('div', { class: 'row center' }, [
+						m('label', '- Demo Body -'),
+						m(Table)
+					]);
+				}
+			};
+
+			const App = {
+				contoller: (args) => {
+					data: { }
+				},
+				view: () => {
+					return m('main', [
+						m(Header), m(Body), m(Action)
+					])
+				}
+			}
+
+			m.mount(document.body, App);
+		}
 	</script>
 
 </head>
 
 <body>
 	<script>
-		var buttonClass = 'btn-small waves-effect waves-light blue';
-
-		var root = document.body
-
-		var Demo = {
-			view: () => {
-				return m('main', [m('div', {class: 'row center'}, [
-						m('h5', {class: 'header col s12 light'}, 'GoSSE Demo'),
-						m('button', {class: buttonClass, onclick: load}, 'Load')
-					]
-				)]);
-			}
-		};
-
-		m.mount(root, Demo);
+		bootstrap();
 	</script>
 </body>
 

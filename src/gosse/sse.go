@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"math/rand"
 	"net/http"
 	"strconv"
 	"time"
@@ -18,13 +17,16 @@ import (
 // -----------------------------------------------------------------------------
 // SSEPayload
 
+// SSEPayloadData payload
+type SSEPayloadData []byte
+
 // SSEPayload type
 type SSEPayload struct {
-	Type        string `json:"type"`
-	Data        []byte `json:"data"`
-	Origin      string `json:"origin"`
-	LastEventID string `json:"lastEventId"`
-	Source      string `json:"source"`
+	Type        string         `json:"type"`
+	Data        SSEPayloadData `json:"data"`
+	Origin      string         `json:"origin"`
+	LastEventID string         `json:"lastEventId"`
+	Source      string         `json:"source"`
 }
 
 // NewSSEPayload conventience init
@@ -54,34 +56,12 @@ func (id SSEPayload) JSON() string {
 }
 
 // -----------------------------------------------------------------------------
-// SSEEvent
-
-// SSEEvent payload
-type SSEEvent struct {
-	Data string `json:"data"`
-}
-
-// NewSSEEvent export
-func NewSSEEvent(data string) SSEEvent {
-	return SSEEvent{
-		Data: data,
-	}
-}
-
-// SSE export
-func (id SSEEvent) SSE() []byte {
-	data, _ := json.Marshal(id)
-	sse := NewSSEPayload(data)
-	return sse.SSE()
-}
-
-// -----------------------------------------------------------------------------
 // SSESubject
 
 // ServiceSubject type
 type ServiceSubject struct {
-	Observable  chan SSEEvent
-	Observers   map[chan SSEEvent]chan SSEEvent
+	Observable  chan SSEPayloadData
+	Observers   map[chan SSEPayloadData]chan SSEPayloadData
 	Close       chan bool
 	Subscribe   chan ServiceSubject
 	Unsubscribe chan ServiceSubject
@@ -90,8 +70,8 @@ type ServiceSubject struct {
 // NewServiceSubject convenience init
 func NewServiceSubject() ServiceSubject {
 	id := ServiceSubject{
-		Observable:  make(chan SSEEvent),
-		Observers:   map[chan SSEEvent]chan SSEEvent{},
+		Observable:  make(chan SSEPayloadData),
+		Observers:   map[chan SSEPayloadData]chan SSEPayloadData{},
 		Close:       make(chan bool, 1),
 		Subscribe:   make(chan ServiceSubject, 1),
 		Unsubscribe: make(chan ServiceSubject, 1),
@@ -106,7 +86,7 @@ func NewServiceSubject() ServiceSubject {
 // NewServiceObserver convenience init
 func NewServiceObserver() ServiceSubject {
 	return ServiceSubject{
-		Observable: make(chan SSEEvent),
+		Observable: make(chan SSEPayloadData),
 		Close:      make(chan bool, 1),
 	}
 }
@@ -205,7 +185,7 @@ func (id *SSEService) handlerEvents(w http.ResponseWriter, r *http.Request) {
 			id.obs.Unsubscribe <- sub
 			return
 		case event := <-sub.Observable:
-			w.Write(event.SSE())
+			w.Write(NewSSEPayload(event).SSE())
 			flush.Flush()
 			break
 		}
@@ -214,14 +194,15 @@ func (id *SSEService) handlerEvents(w http.ResponseWriter, r *http.Request) {
 
 // Start starts the http listener
 func (id *SSEService) Start() {
-
-	// spin the SSEData feed
+	// spin up the SSEPayloadData feed
 	go func() {
-		data := []string{"hello", "world", "foo", "bar", "demo", "prod"}
+		ssePayloadDataChan := dataSource()
 		for {
-			payload := NewSSEEvent(data[rand.Intn(len(data))])
-			id.obs.Observable <- payload
-			time.Sleep(1 * time.Second)
+			select {
+			case payload := <-ssePayloadDataChan:
+				id.obs.Observable <- payload
+				break
+			}
 		}
 	}()
 
