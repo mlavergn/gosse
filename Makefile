@@ -28,3 +28,6 @@ events:
 
 test: build
 	GOPATH=${GOPATH} go test -v .
+
+github:
+	open "https://github.com/mlavergn/gosse"
