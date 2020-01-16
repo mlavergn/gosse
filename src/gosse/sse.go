@@ -163,8 +163,7 @@ func (id *SSEService) handlerEvents(w http.ResponseWriter, r *http.Request) {
 			return
 		case event := <-sub.Next:
 			payload := rx.ToByteArray(event, nil)
-			source, _ := os.Hostname()
-			w.Write(NewSSEPayload(payload, source).SSE())
+			w.Write(payload)
 			flush.Flush()
 			break
 		}
@@ -176,9 +175,11 @@ func (id *SSEService) Start() {
 	http := rx.NewHTTPRequest(0)
 	subject, _ := http.SSESubject("http://express-eventsource.herokuapp.com/events", nil)
 	subject.Map(func(event interface{}) interface{} {
-		payload := rx.ToByteArray(event, nil)
+		data := rx.ToByteArrayArray(event, nil)
 		source, _ := os.Hostname()
-		return NewSSEPayload(payload, source).SSE()
+		payload := ParseSSEPayload(data)
+		payload.Source = source
+		return payload.SSE()
 	})
 	id.obs = subject
 
