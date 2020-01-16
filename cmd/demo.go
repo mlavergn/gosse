@@ -1,7 +1,7 @@
 package main
 
 import (
-	"gosse"
+	"gosse/src/gosse"
 )
 
 func main() {

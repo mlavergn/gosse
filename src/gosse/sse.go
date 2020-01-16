@@ -7,11 +7,16 @@ package gosse
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
+	"strings"
 	"time"
+
+	pack "github.com/mlavergn/gopack/src/gopack"
+	"github.com/mlavergn/rxgo/src/rx"
 )
 
 // -----------------------------------------------------------------------------
@@ -30,98 +35,61 @@ type SSEPayload struct {
 }
 
 // NewSSEPayload conventience init
-func NewSSEPayload(data []byte) SSEPayload {
+func NewSSEPayload(data []byte, source string) *SSEPayload {
 	lastEventID := strconv.FormatInt(time.Now().UTC().Unix(), 10)
-	return SSEPayload{
+	return &SSEPayload{
 		Type:        "message",
 		Data:        data,
 		LastEventID: lastEventID,
+		Source:      source,
 	}
 }
 
 // String provides a string representation of the struct suitable for logging
-func (id SSEPayload) String() string {
+func (id *SSEPayload) String() string {
 	return fmt.Sprintf("type: %s\ndata: %s\norigin: %s\nlastEventId: %s\nsource: %s", id.Type, string(id.Data), id.Origin, id.LastEventID, id.Source)
 }
 
 // SSE provides a []byte representation of the struct in SSE format
-func (id SSEPayload) SSE() []byte {
+func (id *SSEPayload) SSE() []byte {
 	return []byte(fmt.Sprintf("name:%s\ndata:%s\norigin:%s\nid:%s\nsource:%s\n\n", id.Type, string(id.Data), id.Origin, id.LastEventID, id.Source))
 }
 
 // JSON provides a string JSON representation of the struct
-func (id SSEPayload) JSON() string {
+func (id *SSEPayload) JSON() string {
 	result, _ := json.Marshal(id)
 	return string(result)
 }
 
-// -----------------------------------------------------------------------------
-// SSESubject
-
-// ServiceSubject type
-type ServiceSubject struct {
-	Observable  chan SSEPayloadData
-	Observers   map[chan SSEPayloadData]chan SSEPayloadData
-	Close       chan bool
-	Subscribe   chan ServiceSubject
-	Unsubscribe chan ServiceSubject
-}
-
-// NewServiceSubject convenience init
-func NewServiceSubject() ServiceSubject {
-	id := ServiceSubject{
-		Observable:  make(chan SSEPayloadData),
-		Observers:   map[chan SSEPayloadData]chan SSEPayloadData{},
-		Close:       make(chan bool, 1),
-		Subscribe:   make(chan ServiceSubject, 1),
-		Unsubscribe: make(chan ServiceSubject, 1),
+// Decode provides a map representation of the data field
+func (id *SSEPayload) Decode() (map[string]interface{}, error) {
+	result := make(map[string]interface{})
+	err := json.Unmarshal(id.Data, &result)
+	if err != nil {
+		return result, err
 	}
 
-	// subjects multicast
-	id.multicast()
-
-	return id
+	return result, nil
 }
 
-// NewServiceObserver convenience init
-func NewServiceObserver() ServiceSubject {
-	return ServiceSubject{
-		Observable: make(chan SSEPayloadData),
-		Close:      make(chan bool, 1),
-	}
-}
-
-// finalize helper closes the contained channels
-func (id ServiceSubject) finalize() {
-	close(id.Observable)
-	close(id.Close)
-}
-
-// close helper closes the contained channels
-func (id ServiceSubject) complete() {
-	id.Close <- true
-}
-
-// multicast to all observers
-func (id ServiceSubject) multicast() {
-	go func() {
-		for {
-			select {
-			case sub := <-id.Subscribe:
-				id.Observers[sub.Observable] = sub.Observable
-				break
-			case sub := <-id.Unsubscribe:
-				delete(id.Observers, sub.Observable)
-				sub.finalize()
-				break
-			case event := <-id.Observable:
-				for _, sub := range id.Observers {
-					sub <- event
-				}
-				break
-			}
+// ParseSSEPayload parses raw stream data into SSEPayload structs
+func ParseSSEPayload(lines [][]byte) *SSEPayload {
+	payload := &SSEPayload{}
+	for _, line := range lines {
+		strline := string(line)
+		if strings.HasPrefix(strline, "type:") {
+			payload.Type = strline[5 : len(line)-1]
+		} else if strings.HasPrefix(strline, "data:") {
+			payload.Data = []byte(line[5 : len(line)-1])
+		} else if strings.HasPrefix(strline, "origin:") {
+			payload.Origin = strline[7 : len(line)-1]
+		} else if strings.HasPrefix(strline, "lastEventId:") {
+			payload.LastEventID = strline[12:]
+		} else if strings.HasPrefix(strline, "source:") {
+			payload.Source = strline[7 : len(line)-1]
 		}
-	}()
+	}
+	return payload
 }
 
 // -----------------------------------------------------------------------------
@@ -130,7 +98,8 @@ func (id ServiceSubject) multicast() {
 // SSEService service
 type SSEService struct {
 	listener *http.Server
-	obs      ServiceSubject
+	obs      *rx.Observable
+	pack     *pack.Pack
 }
 
 // NewSSEService convenience init a Support instance
@@ -138,7 +107,7 @@ func NewSSEService(port int) *SSEService {
 	hostPort := ":" + strconv.Itoa(port)
 	id := &SSEService{
 		listener: &http.Server{Addr: hostPort},
-		obs:      NewServiceSubject(),
+		obs:      nil,
 	}
 
 	http.Handle("/", http.HandlerFunc(id.handlerStatic))
@@ -152,13 +121,21 @@ func (id *SSEService) handlerStatic(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.WriteHeader(http.StatusOK)
 
-	data, err := ioutil.ReadFile("static" + r.URL.String())
-	if err != nil {
-		log.Println(err)
-		return
+	if id.pack == nil {
+		pipe, err := os.Open("static" + r.URL.String())
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		io.Copy(w, pipe)
+	} else {
+		pipe, err := id.pack.Pipe("static" + r.URL.String())
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		io.Copy(w, pipe)
 	}
-
-	w.Write(data)
 }
 
 func (id *SSEService) handlerEvents(w http.ResponseWriter, r *http.Request) {
@@ -176,16 +153,18 @@ func (id *SSEService) handlerEvents(w http.ResponseWriter, r *http.Request) {
 		flush = flusher
 	}
 
-	sub := NewServiceObserver()
+	sub := rx.NewSubscription()
 	id.obs.Subscribe <- sub
 
 	for {
 		select {
 		case <-r.Context().Done():
-			id.obs.Unsubscribe <- sub
+			sub.Complete <- true
 			return
-		case event := <-sub.Observable:
-			w.Write(NewSSEPayload(event).SSE())
+		case event := <-sub.Next:
+			payload := rx.ToByteArray(event, nil)
+			source, _ := os.Hostname()
+			w.Write(NewSSEPayload(payload, source).SSE())
 			flush.Flush()
 			break
 		}
@@ -194,17 +173,20 @@ func (id *SSEService) handlerEvents(w http.ResponseWriter, r *http.Request) {
 
 // Start starts the http listener
 func (id *SSEService) Start() {
-	// spin up the SSEPayloadData feed
-	go func() {
-		ssePayloadDataChan := dataSource()
-		for {
-			select {
-			case payload := <-ssePayloadDataChan:
-				id.obs.Observable <- payload
-				break
-			}
-		}
-	}()
+	http := rx.NewHTTPRequest(0)
+	subject, _ := http.SSESubject("http://express-eventsource.herokuapp.com/events", nil)
+	subject.Map(func(event interface{}) interface{} {
+		payload := rx.ToByteArray(event, nil)
+		source, _ := os.Hostname()
+		return NewSSEPayload(payload, source).SSE()
+	})
+	id.obs = subject
+
+	id.pack = pack.NewPack()
+	_, err := id.pack.Load()
+	if err != nil {
+		id.pack = nil
+	}
 
 	// blocking
 	id.listener.ListenAndServe()
@@ -215,6 +197,5 @@ func (id *SSEService) Stop() {
 	id.listener.Close()
 
 	// halt backgound jobs
-	id.obs.complete()
-	id.obs.finalize()
+	id.obs.Complete <- true
 }

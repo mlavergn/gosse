@@ -8,17 +8,21 @@
 
 .PHONY: test
 
-GOPATH = "${PWD}"
-
 lint:
-	GOPATH=${GOPATH} ~/go/bin/golint sse.go
+	golint src/gosse
 
 build:
-	GOPATH=${GOPATH} go build .
+	go build ...
 
 demo: build
-	GOPATH=${GOPATH} go build -o demo demo.go
-	./demo
+	go build -o demo cmd/demo.go
+
+pack: demo
+	zip pack static/*
+	printf "%010d" `stat -f%z pack.zip` >> pack.zip
+	mv demo main.pack; cat main.pack pack.zip > demo
+	chmod +x demo
+	rm pack.zip main.pack
 
 www:
 	open "http://127.0.0.1:8000/index.html"
@@ -27,7 +31,7 @@ events:
 	open "http://127.0.0.1:8000/events"
 
 test: build
-	GOPATH=${GOPATH} go test -v .
+	go test -v ./src/gosse/...
 
 github:
 	open "https://github.com/mlavergn/gosse"
