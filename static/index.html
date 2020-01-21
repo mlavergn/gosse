@@ -21,24 +21,36 @@
 		bootstrap = () => {
 			const buttonClass = 'btn-small waves-effect waves-light blue';
 
+			const State = {
+				table: undefined
+			}
+
+			// Stream component
 			const Stream = {
 				start: () => {
 					var support = new EventSource('/events');
 					support.onmessage = (event) => {
 						var payload = JSON.parse(event.data);
 						var keys = Object.keys(payload);
-						if (keys.indexOf('set1') > -1) {
-							Data.data["set1"] = payload['set1']
-						} else {
-							Data.data["set2"] = payload['set2']
-						}
+						keys.map(
+							(rowkey) => {
+								if (Data.data[rowkey] === undefined) {
+									Data.data[rowkey] = payload[rowkey];
+									Table.addRow(State.table, Data, rowkey)
+								} else {
+									Data.data[rowkey] = payload[rowkey];
+								}
+								m.redraw();
+							}
+						)
 					};
 				}
 			}
 
+			// Data source
 			var Data = {
 				header: [
-					'x', 'y'
+					'col x', 'col y', 'col z'
 				],
 				data: {
 					set1: {
@@ -52,6 +64,7 @@
 				}
 			}
 
+			// Header component
 			var Header = {
 				view: (vnode) => {
 					return m('div', { class: 'row center' }, [
@@ -62,22 +75,34 @@
 				}
 			};
 
+			// Action component
 			const Action = {
 				view: (vnode) => {
-					return m('a', { href: 'http://www.google.com' }, 'Google')
+					return m('a', { href: 'http://www.google.com?q=' + vnode.attrs.q }, 'Google')
 				}
 			}
 
+			// Table component
 			const Table = {
+				addRow: (vnode, Data, rowkey) => {
+					var kv = Data.data[rowkey];
+					return m('tr', [
+						Object.keys(kv).map(
+							(colkey) => {
+								return m('td', Data.data[rowkey][colkey])
+							}
+						),
+						m('td', m(Action, {q: JSON.stringify(kv)}))
+					])
+				},
 				view: (vnode) => {
+					State.table = vnode;
 					return m('table', { class: 'highlight' }, [
 						m('thead', [
 							m('tr', [
 								Data.header.map(
 									(header) => {
-										// return m('fieldset', [
 										return m('th', header)
-										// ])
 									}
 								)
 							])
@@ -85,15 +110,7 @@
 						m('tbody', [
 							Object.keys(Data.data).map(
 								(rowkey) => {
-									// return m('fieldset', [
-									return m('tr', [
-										Object.keys(Data.data[rowkey]).map(
-											(colkey) => {
-												return m('td', Data.data[rowkey][colkey])
-											}
-										)
-									])
-									// ])
+									return Table.addRow(vnode, Data, rowkey)
 								}
 							)
 						])
@@ -101,6 +118,7 @@
 				}
 			}
 
+			// Body  component
 			const Body = {
 				view: (vnode) => {
 					return m('div', { class: 'row center' }, [
@@ -110,13 +128,14 @@
 				}
 			};
 
+			// App  controller
 			const App = {
 				contoller: (args) => {
 					data: { }
 				},
 				view: () => {
 					return m('main', [
-						m(Header), m(Body), m(Action)
+						m(Header), m(Body)
 					])
 				}
 			}

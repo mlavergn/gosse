@@ -12,10 +12,11 @@ lint:
 	golint src/gosse
 
 build:
-	go build ...
+	go build ./src/gosse/...
 
 demo: build
 	go build -o demo cmd/demo.go
+	./demo
 
 pack: demo
 	zip pack static/*

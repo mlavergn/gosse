@@ -52,7 +52,20 @@ func (id *SSEPayload) String() string {
 
 // SSE provides a []byte representation of the struct in SSE format
 func (id *SSEPayload) SSE() []byte {
-	return []byte(fmt.Sprintf("name:%s\ndata:%s\norigin:%s\nid:%s\nsource:%s\n\n", id.Type, string(id.Data), id.Origin, id.LastEventID, id.Source))
+	var payload strings.Builder
+	payload.WriteString("name:")
+	payload.WriteString(id.Type)
+	payload.WriteString("\ndata:")
+	payload.Write(id.Data)
+	payload.WriteString("\norigin:")
+	payload.WriteString(id.Origin)
+	payload.WriteString("\nid:")
+	payload.WriteString(id.LastEventID)
+	payload.WriteString("\nsource:")
+	payload.WriteString(id.Source)
+	payload.WriteString("\n\n")
+
+	return []byte(payload.String())
 }
 
 // JSON provides a string JSON representation of the struct
@@ -63,7 +76,7 @@ func (id *SSEPayload) JSON() string {
 
 // Decode provides a map representation of the data field
 func (id *SSEPayload) Decode() (map[string]interface{}, error) {
-	result := make(map[string]interface{})
+	result := map[string]interface{}{}
 	err := json.Unmarshal(id.Data, &result)
 	if err != nil {
 		return result, err
@@ -76,17 +89,18 @@ func (id *SSEPayload) Decode() (map[string]interface{}, error) {
 func ParseSSEPayload(lines [][]byte) *SSEPayload {
 	payload := &SSEPayload{}
 	for _, line := range lines {
+		end := len(line) - 1
 		strline := string(line)
 		if strings.HasPrefix(strline, "type:") {
-			payload.Type = strline[5 : len(line)-1]
+			payload.Type = strline[5:end]
 		} else if strings.HasPrefix(strline, "data:") {
-			payload.Data = []byte(line[5 : len(line)-1])
+			payload.Data = []byte(line[5:end])
 		} else if strings.HasPrefix(strline, "origin:") {
-			payload.Origin = strline[7 : len(line)-1]
+			payload.Origin = strline[7:end]
 		} else if strings.HasPrefix(strline, "lastEventId:") {
-			payload.LastEventID = strline[12:]
+			payload.LastEventID = strline[12:end]
 		} else if strings.HasPrefix(strline, "source:") {
-			payload.Source = strline[7 : len(line)-1]
+			payload.Source = strline[7:end]
 		}
 	}
 	return payload
@@ -153,15 +167,16 @@ func (id *SSEService) handlerEvents(w http.ResponseWriter, r *http.Request) {
 		flush = flusher
 	}
 
-	sub := rx.NewSubscription()
-	id.obs.Subscribe <- sub
+	observer := rx.NewObserver()
+	subject := rx.NewSubject().Merge(id.obs).Delay(1 * time.Second)
+	subject.Subscribe <- observer
 
 	for {
 		select {
 		case <-r.Context().Done():
-			sub.Complete <- true
+			observer.Complete <- nil
 			return
-		case event := <-sub.Next:
+		case event := <-observer.Next:
 			payload := rx.ToByteArray(event, nil)
 			w.Write(payload)
 			flush.Flush()
@@ -172,16 +187,39 @@ func (id *SSEService) handlerEvents(w http.ResponseWriter, r *http.Request) {
 
 // Start starts the http listener
 func (id *SSEService) Start() {
-	http := rx.NewHTTPRequest(0)
-	subject, _ := http.SSESubject("http://express-eventsource.herokuapp.com/events", nil)
-	subject.Map(func(event interface{}) interface{} {
-		data := rx.ToByteArrayArray(event, nil)
+	data := map[string]interface{}{
+		"set1": map[string]interface{}{
+			"val1": "hello",
+			"val2": "world",
+		},
+		"set2": map[string]interface{}{
+			"val1": "foo",
+			"val2": "bar",
+		},
+		"set3": map[string]interface{}{
+			"val1": "tic",
+			"val2": "toc",
+		},
+		"set4": map[string]interface{}{
+			"val1": "zom",
+			"val2": "bee",
+		},
+	}
+
+	id.obs = rx.NewReplaySubject(4).Map(func(event interface{}) interface{} {
+		if event == nil {
+			return nil
+		}
+		data := event.(map[string]interface{})
+		json, _ := json.Marshal(data)
 		source, _ := os.Hostname()
-		payload := ParseSSEPayload(data)
-		payload.Source = source
+		payload := NewSSEPayload(json, source)
 		return payload.SSE()
-	})
-	id.obs = subject
+	}).Share()
+	id.obs.UID = "SSESubject" + id.obs.UID
+	dataObs := rx.NewFromMap(data)
+	dataObs.UID = "DataSubject" + dataObs.UID
+	dataObs.Pipe(id.obs)
 
 	id.pack = pack.NewPack()
 	_, err := id.pack.Load()
@@ -195,8 +233,9 @@ func (id *SSEService) Start() {
 
 // Stop starts the http listener
 func (id *SSEService) Stop() {
+	fmt.Println("DONE")
 	id.listener.Close()
 
 	// halt backgound jobs
-	id.obs.Complete <- true
+	id.obs.Complete <- id.obs
 }
