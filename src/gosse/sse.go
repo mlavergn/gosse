@@ -130,40 +130,44 @@ func NewSSEService(port int) *SSEService {
 	return id
 }
 
-func (id *SSEService) handlerStatic(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.WriteHeader(http.StatusOK)
+func (id *SSEService) handlerStatic(resp http.ResponseWriter, req *http.Request) {
+	defer req.Body.Close()
+	resp.Header().Set("Content-Type", "text/html")
+	resp.Header().Set("Cache-Control", "no-cache")
+	resp.WriteHeader(http.StatusOK)
 
 	if id.pack == nil {
-		pipe, err := os.Open("static" + r.URL.String())
+		pipe, err := os.Open("static" + req.URL.String())
 		if err != nil {
 			log.Println(err)
 			return
 		}
-		io.Copy(w, pipe)
+		defer pipe.Close()
+		io.Copy(resp, pipe)
 	} else {
-		pipe, err := id.pack.Pipe("static" + r.URL.String())
+		pipe, err := id.pack.Pipe("static" + req.URL.String())
 		if err != nil {
 			log.Println(err)
 			return
 		}
-		io.Copy(w, pipe)
+		defer pipe.Close()
+		io.Copy(resp, pipe)
 	}
 }
 
-func (id *SSEService) handlerEvents(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Server", "GoSSE Server")
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
+func (id *SSEService) handlerEvents(resp http.ResponseWriter, req *http.Request) {
+	defer req.Body.Close()
+	resp.Header().Set("Server", "GoSSE Server")
+	resp.Header().Set("Content-Type", "text/event-stream")
+	resp.Header().Set("Cache-Control", "no-cache")
 
 	lastEventID := strconv.FormatInt(time.Now().UTC().Unix(), 10)
-	w.Header().Set("Last-Event-ID", lastEventID)
+	resp.Header().Set("Last-Event-ID", lastEventID)
 
-	w.WriteHeader(http.StatusOK)
+	resp.WriteHeader(http.StatusOK)
 
 	var flush http.Flusher
-	if flusher, ok := w.(http.Flusher); ok {
+	if flusher, ok := resp.(http.Flusher); ok {
 		flush = flusher
 	}
 
@@ -173,12 +177,12 @@ func (id *SSEService) handlerEvents(w http.ResponseWriter, r *http.Request) {
 
 	for {
 		select {
-		case <-r.Context().Done():
+		case <-req.Context().Done():
 			observer.Complete <- nil
 			return
 		case event := <-observer.Next:
 			payload := rx.ToByteArray(event, nil)
-			w.Write(payload)
+			resp.Write(payload)
 			flush.Flush()
 			break
 		}
