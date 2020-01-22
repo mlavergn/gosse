@@ -21,10 +21,6 @@
 		bootstrap = () => {
 			const buttonClass = 'btn-small waves-effect waves-light blue';
 
-			const State = {
-				table: undefined
-			}
-
 			// Stream component
 			const Stream = {
 				start: () => {
@@ -34,15 +30,10 @@
 						var keys = Object.keys(payload);
 						keys.map(
 							(rowkey) => {
-								if (Data.data[rowkey] === undefined) {
-									Data.data[rowkey] = payload[rowkey];
-									Table.addRow(State.table, Data, rowkey)
-								} else {
-									Data.data[rowkey] = payload[rowkey];
-								}
-								m.redraw();
+								Data.data[rowkey] = payload[rowkey];
 							}
 						)
+						m.redraw();
 					};
 				}
 			}
@@ -84,23 +75,22 @@
 
 			// Table component
 			const Table = {
-				addRow: (vnode, Data, rowkey) => {
-					var kv = Data.data[rowkey];
+				addRow: (vnode, rowkey) => {
+					var kv = vnode.attrs.datasource.data[rowkey];
 					return m('tr', [
 						Object.keys(kv).map(
 							(colkey) => {
-								return m('td', Data.data[rowkey][colkey])
+								return m('td', vnode.attrs.datasource.data[rowkey][colkey])
 							}
 						),
-						m('td', m(Action, {q: JSON.stringify(kv)}))
+						m('td', m(Action, { q: JSON.stringify(kv) }))
 					])
 				},
 				view: (vnode) => {
-					State.table = vnode;
 					return m('table', { class: 'highlight' }, [
 						m('thead', [
 							m('tr', [
-								Data.header.map(
+								vnode.attrs.datasource.header.map(
 									(header) => {
 										return m('th', header)
 									}
@@ -108,9 +98,9 @@
 							])
 						]),
 						m('tbody', [
-							Object.keys(Data.data).map(
+							Object.keys(vnode.attrs.datasource.data).map(
 								(rowkey) => {
-									return Table.addRow(vnode, Data, rowkey)
+									return vnode.state.addRow(vnode, rowkey)
 								}
 							)
 						])
@@ -123,19 +113,17 @@
 				view: (vnode) => {
 					return m('div', { class: 'row center' }, [
 						m('label', '- Demo Body -'),
-						m(Table)
+						m(Table, { datasource: Data }),
 					]);
 				}
 			};
 
 			// App  controller
 			const App = {
-				contoller: (args) => {
-					data: { }
-				},
-				view: () => {
+				view: (vnode) => {
 					return m('main', [
-						m(Header), m(Body)
+						m(Header),
+						m(Body),
 					])
 				}
 			}
