@@ -19,6 +19,9 @@ import (
 	"github.com/mlavergn/rxgo/src/rx"
 )
 
+// Version export
+const Version = "0.1.0"
+
 // -----------------------------------------------------------------------------
 // SSEPayload
 
@@ -134,6 +137,7 @@ func (id *SSEService) handlerStatic(resp http.ResponseWriter, req *http.Request)
 	defer req.Body.Close()
 	resp.Header().Set("Content-Type", "text/html")
 	resp.Header().Set("Cache-Control", "no-cache")
+	resp.Header().Set("Connection", "close")
 	resp.WriteHeader(http.StatusOK)
 
 	if id.pack == nil {
@@ -160,6 +164,7 @@ func (id *SSEService) handlerEvents(resp http.ResponseWriter, req *http.Request)
 	resp.Header().Set("Server", "GoSSE Server")
 	resp.Header().Set("Content-Type", "text/event-stream")
 	resp.Header().Set("Cache-Control", "no-cache")
+	resp.Header().Set("Connection", "close")
 
 	lastEventID := strconv.FormatInt(time.Now().UTC().Unix(), 10)
 	resp.Header().Set("Last-Event-ID", lastEventID)

@@ -8,6 +8,11 @@
 
 .PHONY: test
 
+VERSION := 0.1.0
+
+ver:
+	@sed -i '' 's/^const Version = "[0-9]\{1,3\}.[0-9]\{1,3\}.[0-9]\{1,3\}"/const Version = "${VERSION}"/' src/gosse/sse.go
+
 lint:
 	golint src/gosse
 
