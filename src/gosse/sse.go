@@ -6,7 +6,6 @@ package gosse
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -50,7 +49,14 @@ func NewSSEPayload(data []byte, source string) *SSEPayload {
 
 // String provides a string representation of the struct suitable for logging
 func (id *SSEPayload) String() string {
-	return fmt.Sprintf("type: %s\ndata: %s\norigin: %s\nlastEventId: %s\nsource: %s", id.Type, string(id.Data), id.Origin, id.LastEventID, id.Source)
+	result := []string{
+		"type: ", id.Type,
+		"\ndata: ", string(id.Data),
+		"\norigin: ", id.Origin,
+		"\nlastEventId: ", id.LastEventID,
+		"\nsource: ", id.Source,
+	}
+	return strings.Join(result, "")
 }
 
 // SSE provides a []byte representation of the struct in SSE format
@@ -154,7 +160,6 @@ func (id *SSEService) handlerStatic(resp http.ResponseWriter, req *http.Request)
 			log.Println(err)
 			return
 		}
-		defer pipe.Close()
 		io.Copy(resp, pipe)
 	}
 }
@@ -242,7 +247,6 @@ func (id *SSEService) Start() {
 
 // Stop starts the http listener
 func (id *SSEService) Stop() {
-	fmt.Println("DONE")
 	id.listener.Close()
 
 	// halt backgound jobs
