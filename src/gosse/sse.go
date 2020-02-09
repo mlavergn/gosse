@@ -13,25 +13,22 @@ import (
 )
 
 // Version export
-const Version = "0.2.0"
+const Version = "0.3.0"
 
 // -----------------------------------------------------------------------------
 // SSEPayload
 
-// SSEPayloadData payload
-type SSEPayloadData []byte
-
 // SSEPayload type
 type SSEPayload struct {
-	Type        string         `json:"type"`
-	Data        SSEPayloadData `json:"data"`
-	Origin      string         `json:"origin"`
-	LastEventID string         `json:"lastEventId"`
-	Source      string         `json:"source"`
+	Type        string                 `json:"type"`
+	Data        map[string]interface{} `json:"data"`
+	Origin      string                 `json:"origin"`
+	LastEventID string                 `json:"lastEventId"`
+	Source      string                 `json:"source"`
 }
 
-// NewSSEPayload conventience init
-func NewSSEPayload(data []byte, origin string) *SSEPayload {
+// NewSSEPayload init
+func NewSSEPayload(data map[string]interface{}, origin string) *SSEPayload {
 	lastEventID := strconv.FormatInt(time.Now().UTC().Unix(), 10)
 	hostname, _ := os.Hostname()
 	return &SSEPayload{
@@ -43,13 +40,59 @@ func NewSSEPayload(data []byte, origin string) *SSEPayload {
 	}
 }
 
+// NewSSEPayloadFromRaw init
+func NewSSEPayloadFromRaw(lines [][]byte) *SSEPayload {
+	id := &SSEPayload{}
+	for _, line := range lines {
+		end := len(line) - 1
+		strline := string(line)
+		if strings.HasPrefix(strline, "type:") {
+			id.Type = strline[5:end]
+		} else if strings.HasPrefix(strline, "data:") {
+			var data map[string]interface{}
+			rawdata := []byte(line[5 : len(line)-1])
+			json.Unmarshal(rawdata, &data)
+			id.Data = data
+		} else if strings.HasPrefix(strline, "origin:") {
+			id.Origin = strline[7:end]
+		} else if strings.HasPrefix(strline, "lastEventId:") {
+			id.LastEventID = strline[12:end]
+		} else if strings.HasPrefix(strline, "source:") {
+			id.Source = strline[7:end]
+		}
+	}
+	return id
+}
+
+// NewSSEPayloadFromRaw init
+func NewSSEPayloadFromMap(dict map[string]interface{}) *SSEPayload {
+	id := &SSEPayload{}
+	for k, v := range dict {
+		switch strings.ToLower(k) {
+		case "type":
+			id.Type = v.(string)
+		case "data":
+			id.Data = v.(map[string]interface{})
+		case "origin":
+			id.Origin = v.(string)
+		case "lasteventid":
+			id.LastEventID = v.(string)
+		case "source":
+			id.Source = v.(string)
+		}
+	}
+
+	return id
+}
+
 // String provides a string representation of the struct suitable for logging
 func (id *SSEPayload) String() string {
 	var payload strings.Builder
 	payload.WriteString("type:")
 	payload.WriteString(id.Type)
 	payload.WriteString("\ndata:")
-	payload.Write(id.Data)
+	data, _ := json.Marshal(id.Data)
+	payload.Write(data)
 	payload.WriteString("\norigin:")
 	payload.WriteString(id.Origin)
 	payload.WriteString("\nlastEventId:")
@@ -66,7 +109,8 @@ func (id *SSEPayload) SSE() []byte {
 	payload.WriteString("name:")
 	payload.WriteString(id.Type)
 	payload.WriteString("\ndata:")
-	payload.Write(id.Data)
+	data, _ := json.Marshal(id.Data)
+	payload.Write(data)
 	payload.WriteString("\norigin:")
 	payload.WriteString(id.Origin)
 	payload.WriteString("\nid:")
@@ -82,36 +126,4 @@ func (id *SSEPayload) SSE() []byte {
 func (id *SSEPayload) JSON() string {
 	result, _ := json.Marshal(id)
 	return string(result)
-}
-
-// Decode provides a map representation of the data field
-func (id *SSEPayload) Decode() (map[string]interface{}, error) {
-	result := map[string]interface{}{}
-	err := json.Unmarshal(id.Data, &result)
-	if err != nil {
-		return result, err
-	}
-
-	return result, nil
-}
-
-// ParseSSEPayload parses raw stream data into SSEPayload structs
-func ParseSSEPayload(lines [][]byte) *SSEPayload {
-	payload := &SSEPayload{}
-	for _, line := range lines {
-		end := len(line) - 1
-		strline := string(line)
-		if strings.HasPrefix(strline, "type:") {
-			payload.Type = strline[5:end]
-		} else if strings.HasPrefix(strline, "data:") {
-			payload.Data = []byte(line[5:end])
-		} else if strings.HasPrefix(strline, "origin:") {
-			payload.Origin = strline[7:end]
-		} else if strings.HasPrefix(strline, "lastEventId:") {
-			payload.LastEventID = strline[12:end]
-		} else if strings.HasPrefix(strline, "source:") {
-			payload.Source = strline[7:end]
-		}
-	}
-	return payload
 }

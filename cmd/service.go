@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"io"
 	"log"
 	"net/http"
@@ -124,9 +123,8 @@ func (id *SSEService) Start() {
 			return nil
 		}
 		data := event.(map[string]interface{})
-		json, _ := json.Marshal(data)
 		source, _ := os.Hostname()
-		payload := sse.NewSSEPayload(json, source)
+		payload := sse.NewSSEPayload(data, source)
 		return payload.SSE()
 	}).Share()
 	id.obs.UID = "SSESubject" + id.obs.UID
