@@ -8,7 +8,7 @@
 
 .PHONY: test
 
-VERSION := 0.3.0
+VERSION := 0.3.1
 
 ver:
 	@sed -i '' 's/^const Version = "[0-9]\{1,3\}.[0-9]\{1,3\}.[0-9]\{1,3\}"/const Version = "${VERSION}"/' src/gosse/sse.go
