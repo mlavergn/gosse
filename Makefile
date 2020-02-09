@@ -8,7 +8,7 @@
 
 .PHONY: test
 
-VERSION := 0.3.1
+VERSION := 0.3.2
 
 ver:
 	@sed -i '' 's/^const Version = "[0-9]\{1,3\}.[0-9]\{1,3\}.[0-9]\{1,3\}"/const Version = "${VERSION}"/' src/gosse/sse.go
@@ -45,7 +45,7 @@ bench: build
 
 release:
 	zip -r gosse.zip LICENSE README.md Makefile cmd src
-	hub release create -m "${VERSION} - gosse" -a gosse.zip -t master "${VERSION}"
+	hub release create -m "${VERSION} - gosse" -a gosse.zip -t master "v${VERSION}"
 	open "https://github.com/mlavergn/gosse"
 
 github:
