@@ -20,7 +20,8 @@ build:
 	go build ./src/gosse/...
 
 demo: build
-	go build -o demo cmd/demo.go
+	cd cmd; go build -o ../demo demo.go service.go
+	open "http://127.0.0.1:8000/index.html"
 	./demo
 
 pack: demo
@@ -38,6 +39,10 @@ events:
 
 test: build
 	go test -v ./src/gosse/...
+
+bench: build
+	go test -benchmem -benchtime 10000x -bench=. -v ./src/...
+
 
 github:
 	open "https://github.com/mlavergn/gosse"
