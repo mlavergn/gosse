@@ -44,7 +44,7 @@ bench: build
 	go test -benchmem -benchtime 10000x -bench=. -v ./src/...
 
 release:
-	zip gosse.zip gosse
+	zip -r gosse.zip LICENSE README.md Makefile cmd src
 	hub release create -m "${VERSION} - gosse" -a gosse.zip -t master "${VERSION}"
 	open "https://github.com/mlavergn/gosse"
 
