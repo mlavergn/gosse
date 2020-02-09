@@ -8,7 +8,7 @@
 
 .PHONY: test
 
-VERSION := 0.1.0
+VERSION := 0.2.0
 
 ver:
 	@sed -i '' 's/^const Version = "[0-9]\{1,3\}.[0-9]\{1,3\}.[0-9]\{1,3\}"/const Version = "${VERSION}"/' src/gosse/sse.go
@@ -43,6 +43,10 @@ test: build
 bench: build
 	go test -benchmem -benchtime 10000x -bench=. -v ./src/...
 
+release:
+	zip gosse.zip gosse
+	hub release create -m "${VERSION} - gosse" -a gosse.zip -t master "${VERSION}"
+	open "https://github.com/mlavergn/gosse"
 
 github:
 	open "https://github.com/mlavergn/gosse"
