@@ -64,7 +64,7 @@ func NewSSEPayloadFromRaw(lines [][]byte) *SSEPayload {
 	return id
 }
 
-// NewSSEPayloadFromRaw init
+// NewSSEPayloadFromMap init
 func NewSSEPayloadFromMap(dict map[string]interface{}) *SSEPayload {
 	id := &SSEPayload{}
 	for k, v := range dict {

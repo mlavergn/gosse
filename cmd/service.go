@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	pack "github.com/mlavergn/gopack/src/gopack"
-	sse "github.com/mlavergn/gosse/src/gosse"
+	pack "github.com/mlavergn/gopack"
+	sse "github.com/mlavergn/gosse"
 	rx "github.com/mlavergn/rxgo/src/rx"
 )
 

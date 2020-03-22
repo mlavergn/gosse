@@ -11,13 +11,13 @@
 VERSION := 0.3.2
 
 ver:
-	@sed -i '' 's/^const Version = "[0-9]\{1,3\}.[0-9]\{1,3\}.[0-9]\{1,3\}"/const Version = "${VERSION}"/' src/gosse/sse.go
+	@sed -i '' 's/^const Version = "[0-9]\{1,3\}.[0-9]\{1,3\}.[0-9]\{1,3\}"/const Version = "${VERSION}"/' sse.go
 
 lint:
-	golint src/gosse
+	$(shell go env GOPATH)/bin/golint .
 
 build:
-	go build ./src/gosse/...
+	go build .
 
 demo: build
 	cd cmd; go build -o ../demo demo.go service.go
@@ -38,13 +38,13 @@ events:
 	open "http://127.0.0.1:8000/events"
 
 test: build
-	go test -count=1 -v ./src/gosse/...
+	go test -count=1 -v .
 
 bench: build
-	go test -benchmem -benchtime 10000x -bench=. -v ./src/...
+	go test -benchmem -benchtime 10000x -bench=. -v .
 
 release:
-	zip -r gosse.zip LICENSE README.md Makefile cmd src
+	zip -r gosse.zip LICENSE README.md Makefile cmd *.go mod.go
 	hub release create -m "${VERSION} - gosse" -a gosse.zip -t master "v${VERSION}"
 	open "https://github.com/mlavergn/gosse"
 
